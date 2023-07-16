@@ -389,18 +389,26 @@ class FilamentSensorBase {
       }
 
       static void filament_present(const uint8_t extruder) {
-        mm_countdown.runout[extruder] = runout_distance_mm;
+        if (mm_countdown.runout[extruder]<runout_distance_mm) {
+          // reset runout only if it is smaller than runout_distance
+          // on bowden systems retract may be larger than runout_distance_mm, so if retract was added,
+          // we should leave it in place, so unretract will not cause runout event
+          mm_countdown.runout[extruder] = runout_distance_mm;
+        }
       }
 
       #if ENABLED(FILAMENT_SWITCH_AND_MOTION)
         static void filament_motion_present(const uint8_t extruder) {
-          mm_countdown.motion[extruder] = runout_distance_mm;
+          if (mm_countdown.motion[extruder]<runout_distance_mm) {
+            // same logic as filament_present function
+            mm_countdown.motion[extruder] = runout_distance_mm;
+          }
         }
       #endif
 
       static void block_completed(const block_t * const b) {
-        if (b->steps.x || b->steps.y || b->steps.z || did_pause_print) { // Allow pause purge move to re-trigger runout state
-          // Only trigger on extrusion with XYZ movement to allow filament change and retract/recover.
+        if (b->steps.e) { // execute calculation if there is any extruder movement
+          // there is no need to ignore retract/unretract movement as they compensate each other
           const uint8_t e = b->extruder;
           const int32_t steps = b->steps.e;
           const float mm = (b->direction_bits.e ? steps : -steps) * planner.mm_per_step[E_AXIS_N(e)];
